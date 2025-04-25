@@ -1,0 +1,155 @@
+
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>SVM Classification Results</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            .container { max-width: 1200px; margin: 0 auto; }
+            .metrics-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+            .metrics-table th, .metrics-table td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+            .metrics-table th { background-color: #f2f2f2; }
+            .metrics-table tr:nth-child(even) { background-color: #f9f9f9; }
+            .confusion-matrix { display: flex; flex-wrap: wrap; justify-content: space-around; }
+            .matrix-container { margin: 10px; text-align: center; }
+            .matrix-container img { max-width: 400px; }
+            h1, h2 { color: #333; }
+            .summary { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>SVM Classification Results</h1>
+            
+            <div class="summary">
+                <h2>Overall Performance</h2>
+                <table class="metrics-table">
+                    <tr>
+                        <th>Metric</th>
+                        <th>Mean</th>
+                        <th>Standard Deviation</th>
+                    </tr>
+                    <tr>
+                        <td>Accuracy</td>
+                        <td>0.8750</td>
+                        <td>0.0182</td>
+                    </tr>
+                    <tr>
+                        <td>Precision</td>
+                        <td>0.9428</td>
+                        <td>0.0270</td>
+                    </tr>
+                    <tr>
+                        <td>Recall</td>
+                        <td>0.7990</td>
+                        <td>0.0222</td>
+                    </tr>
+                    <tr>
+                        <td>F1-Score</td>
+                        <td>0.8647</td>
+                        <td>0.0197</td>
+                    </tr>
+                    <tr>
+                        <td>AUC</td>
+                        <td>0.9201</td>
+                        <td>0.0211</td>
+                    </tr>
+                </table>
+            </div>
+
+            <h2>Per-Fold Results</h2>
+            <table class="metrics-table">
+                <tr>
+                    <th>Fold</th>
+                    <th>Accuracy</th>
+                    <th>Precision</th>
+                    <th>Recall</th>
+                    <th>F1-Score</th>
+                    <th>AUC</th>
+                </tr>
+                
+                <tr>
+                    <td>1</td>
+                    <td>0.8850</td>
+                    <td>0.9695</td>
+                    <td>0.7950</td>
+                    <td>0.8736</td>
+                    <td>0.9303</td>
+                </tr>
+                
+                <tr>
+                    <td>2</td>
+                    <td>0.8925</td>
+                    <td>0.9645</td>
+                    <td>0.8150</td>
+                    <td>0.8835</td>
+                    <td>0.9283</td>
+                </tr>
+                
+                <tr>
+                    <td>3</td>
+                    <td>0.8400</td>
+                    <td>0.9000</td>
+                    <td>0.7650</td>
+                    <td>0.8270</td>
+                    <td>0.8782</td>
+                </tr>
+                
+                <tr>
+                    <td>4</td>
+                    <td>0.8800</td>
+                    <td>0.9222</td>
+                    <td>0.8300</td>
+                    <td>0.8737</td>
+                    <td>0.9358</td>
+                </tr>
+                
+                <tr>
+                    <td>5</td>
+                    <td>0.8775</td>
+                    <td>0.9576</td>
+                    <td>0.7900</td>
+                    <td>0.8658</td>
+                    <td>0.9277</td>
+                </tr>
+                
+            </table>
+
+            <h2>Confusion Matrices</h2>
+            <div class="confusion-matrix">
+                
+                <div class="matrix-container">
+                    <h3>Fold 1</h3>
+                    <img src="confusion_matrix_fold_1.png" alt="Confusion Matrix Fold 1">
+                    <img src="confusion_matrix_norm_fold_1.png" alt="Normalized Confusion Matrix Fold 1">
+                </div>
+                
+                <div class="matrix-container">
+                    <h3>Fold 2</h3>
+                    <img src="confusion_matrix_fold_2.png" alt="Confusion Matrix Fold 2">
+                    <img src="confusion_matrix_norm_fold_2.png" alt="Normalized Confusion Matrix Fold 2">
+                </div>
+                
+                <div class="matrix-container">
+                    <h3>Fold 3</h3>
+                    <img src="confusion_matrix_fold_3.png" alt="Confusion Matrix Fold 3">
+                    <img src="confusion_matrix_norm_fold_3.png" alt="Normalized Confusion Matrix Fold 3">
+                </div>
+                
+                <div class="matrix-container">
+                    <h3>Fold 4</h3>
+                    <img src="confusion_matrix_fold_4.png" alt="Confusion Matrix Fold 4">
+                    <img src="confusion_matrix_norm_fold_4.png" alt="Normalized Confusion Matrix Fold 4">
+                </div>
+                
+                <div class="matrix-container">
+                    <h3>Fold 5</h3>
+                    <img src="confusion_matrix_fold_5.png" alt="Confusion Matrix Fold 5">
+                    <img src="confusion_matrix_norm_fold_5.png" alt="Normalized Confusion Matrix Fold 5">
+                </div>
+                
+            </div>
+        </div>
+    </body>
+    </html>
+    
