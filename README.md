@@ -46,11 +46,14 @@ The script will generate a LIBSVM format file: `FeatureExtractor/TransferLearnin
 To run SVM classification:
 ```bash
 # On Windows
-python SVM/svm_classifier.py
+python SVM/svm_classifier.py -dataset FeatureExtractor/TransferLearningAntivirus.libsvm
 
 # On Linux
-python3 SVM/svm_classifier.py
+python3 SVM/svm_classifier.py -dataset FeatureExtractor/TransferLearningAntivirus.libsvm
 ```
+
+Onde:
+- `-dataset`: Caminho para o arquivo libsvm (opcional, padrão: 'FeatureExtractor/TransferLearningAntivirus.libsvm')
 
 The script will:
 - Load the extracted features

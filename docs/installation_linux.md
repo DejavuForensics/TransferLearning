@@ -65,5 +65,5 @@ python3 FeatureExtractor/extract_features.py --model resnet --data_dir Antivirus
 
 2. To run SVM classification:
 ```bash
-python3 SVM/svm_classifier.py
+python3 SVM/svm_classifier.py -dataset FeatureExtractor/TransferLearningAntivirus.libsvm
 ```
