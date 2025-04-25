@@ -25,7 +25,7 @@ class FileToImageConverter:
         
     def _process_file(self, file_path):
         """Processa arquivos .exe ou .json"""
-        if file_path.lower().endswith('.exe'):
+        if file_path.lower().endswith('.file'):
             with open(file_path, 'rb') as f:
                 byte_content = f.read()
         elif file_path.lower().endswith('.json'):
@@ -148,7 +148,7 @@ class CustomDatasetLoader:
             print(f"Encontrados {len(files)} arquivos em {class_folder}")
             
             for filename in files:
-                if filename.lower().endswith(f'.json'):
+                if filename.lower().endswith(f'.json') or filename.lower().endswith(f'.file'):
                     file_path = os.path.join(class_folder, filename)
                     try:
                         img_array = self.converter.convert_to_image(file_path)
@@ -190,6 +190,32 @@ class Classifier:
         self.model = self.model_defs[model_name](load_weights=True)
         self.class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
         
+        # Cria um modelo para extrair atributos da penúltima camada
+        self.feature_model = tf.keras.Model(
+            inputs=self.model._model.input,
+            outputs=self.model._model.layers[-2].output
+        )
+        
+    def extract_features(self, image):
+        """Extrai atributos da penúltima camada do modelo.
+        
+        Args:
+            image (numpy.ndarray): Imagem para extração de atributos (deve ter shape (1, 32, 32, 3))
+            
+        Returns:
+            numpy.ndarray: Atributos extraídos da penúltima camada
+        """
+        # Garante que a imagem esteja no formato correto
+        if image.ndim == 3:
+            image = np.expand_dims(image, axis=0)
+        
+        # Normaliza a imagem para o intervalo [0, 1]
+        image = image.astype('float32') / 255.0
+        
+        # Extrai os atributos
+        features = self.feature_model.predict(image)
+        return features
+        
     def classify_image(self, image):
         """Classifica uma imagem usando o modelo pré-treinado.
         
@@ -201,6 +227,7 @@ class Classifier:
                 - class: Nome da classe prevista
                 - confidence: Confiança da previsão
                 - all_predictions: Probabilidades para todas as classes
+                - features: Atributos extraídos da penúltima camada
         """
         # Garante que a imagem esteja no formato correto
         if image.ndim == 3:
@@ -214,10 +241,14 @@ class Classifier:
         predicted_class = np.argmax(predictions)
         confidence = predictions[0][predicted_class]
         
+        # Extrai os atributos da penúltima camada
+        features = self.extract_features(image)
+        
         return {
             'class': self.class_names[predicted_class],
             'confidence': float(confidence),
-            'all_predictions': {name: float(prob) for name, prob in zip(self.class_names, predictions[0])}
+            'all_predictions': {name: float(prob) for name, prob in zip(self.class_names, predictions[0])},
+            'features': features[0]  # Remove a dimensão de batch
         }
         
     def evaluate_accuracy(self, test_data=None):
@@ -358,17 +389,17 @@ if __name__ == '__main__':
         for idx in indices:
             image = x_data[idx:idx+1]  # Adiciona dimensão de batch
             
-            # Classifica a imagem
+            # Classifica a imagem e extrai atributos
             result = classifier.classify_image(image)
             
             # Mapeia as previsões para as classes do dataset customizado
             predicted_class = 'malware' if result['confidence'] > 0.5 else 'benign'
             confidence = result['confidence'] if predicted_class == 'malware' else 1 - result['confidence']                
             
-            # Prepara os atributos (probabilidades das classes do CIFAR-10)
+            # Prepara os atributos da penúltima camada
             attributes = []
-            for i, (class_name, prob) in enumerate(result['all_predictions'].items(), 1):
-                attributes.append(f"{i}:{prob:.4f}")
+            for i, feature in enumerate(result['features'], 1):
+                attributes.append(f"{i}:{feature:.4f}")
             
             # Escreve no formato LIBSVM
             line = f"{y_data[idx]} {' '.join(attributes)}\n"
@@ -381,7 +412,7 @@ if __name__ == '__main__':
                 'true_class': class_names[0 if y_data[idx] == -1 else 1],
                 'predicted_class': predicted_class,
                 'confidence': confidence,
-                'all_predictions': result['all_predictions'],
+                'features': result['features'],
                 'success': predicted_class == class_names[0 if y_data[idx] == -1 else 1]
             }
             
