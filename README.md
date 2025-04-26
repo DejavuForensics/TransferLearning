@@ -14,6 +14,7 @@ This repository contains an implementation of transfer learning using pre-traine
 - Training custom CNNs for feature extraction
 - Classification using SVM with cross-validation
 - Results visualization and performance metrics
+- Hybrid approach combining shallow and deep network features
 
 ## Requirements
 
@@ -66,6 +67,35 @@ The HTML report includes:
 - Performance metrics (accuracy, precision, recall, F1-score, AUC)
 - Overall statistics
 - Visualizations
+
+### 3. Hybrid Approach: Combining Shallow and Deep Networks
+
+This project also supports a hybrid approach that combines features from both shallow and deep networks. This approach can potentially capture both low-level and high-level features for improved classification performance.
+
+To use the hybrid approach:
+
+1. First, convert your dataset to LIBSVM format:
+```bash
+python SVM/converter_libsvm.py Antivirus_Dataset_PE32_Ransomware_mELM_format.csv Antivirus_Dataset_PE32_Ransomware_SVM_format.libsvm
+```
+
+2. Then, merge the features from deep networks with the shallow network features:
+```bash
+python FeatureExtractor/join_repository.py FeatureExtractor/TransferLearningAntivirus.libsvm Antivirus_Dataset_PE32_Ransomware_SVM_format.libsvm
+```
+
+3. Finally, train the SVM classifier on the combined features:
+```bash
+python SVM/svm_classifier.py -dataset FeatureExtractor/Joined_TransferLearning.libsvm
+```
+
+This hybrid approach:
+- Combines features from both shallow and deep networks
+- Potentially captures a wider range of feature representations
+- May improve classification performance by leveraging complementary feature sets
+- Uses cross-validation to ensure robust performance evaluation
+
+The results will be saved in the same format as the standard approach, with an HTML report available at `SVM/results/svm_results_report.html`.
 
 ## Contribution
 
