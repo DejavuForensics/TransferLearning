@@ -48,3 +48,10 @@ desktop.ini
 AntivirusDataset/benign/*
 AntivirusDataset/malware/*
 *.libsvm
+results/*
+*.csv
+*.pkl
+*.png
+*.jpg
+*.jpeg
+*.gif

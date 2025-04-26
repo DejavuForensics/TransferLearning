@@ -164,8 +164,34 @@ class CustomDatasetLoader:
         return np.array(x_data), np.array(y_data)
     
     def save_as_libsvm(self, x_data, y_data, output_file):
-        """Salva os dados no formato libsvm"""
-        dump_svmlight_file(x_data.reshape(len(x_data), -1), y_data, output_file)
+        """Salva os dados no formato libsvm, incluindo apenas features não-zero.
+        
+        Args:
+            x_data (numpy.ndarray): Dados de entrada
+            y_data (numpy.ndarray): Labels
+            output_file (str): Caminho do arquivo de saída
+        """
+        # Reshape dos dados para formato 2D
+        x_data = x_data.reshape(len(x_data), -1)
+        
+        with open(output_file, 'w') as f:
+            for i in range(len(x_data)):
+                # Escreve o label
+                line = str(int(y_data[i]))
+                
+                # Adiciona apenas as features não-zero
+                for j in range(x_data.shape[1]):
+                    value = x_data[i, j]
+                    if value != 0:  # Inclui apenas valores não-zero
+                        # Converte para inteiro se possível, mantém decimal se necessário
+                        if value.is_integer():
+                            value = int(value)
+                        line += f" {j+1}:{value}"
+                
+                f.write(line + '\n')
+        
+        print(f"Arquivo libsvm salvo em: {output_file}")
+        print(f"Total de amostras: {len(x_data)}")
 
 class Classifier:
     def __init__(self, model_name='lenet'):
@@ -385,39 +411,5 @@ if __name__ == '__main__':
     
     # Salva no formato LIBSVM
     print(f'Saving LIBSVM format to {args.libsvm_file}')
-    with open(args.libsvm_file, 'w') as f:
-        for idx in indices:
-            image = x_data[idx:idx+1]  # Adiciona dimensão de batch
-            
-            # Classifica a imagem e extrai atributos
-            result = classifier.classify_image(image)
-            
-            # Mapeia as previsões para as classes do dataset customizado
-            predicted_class = 'malware' if result['confidence'] > 0.5 else 'benign'
-            confidence = result['confidence'] if predicted_class == 'malware' else 1 - result['confidence']                
-            
-            # Prepara os atributos da penúltima camada
-            attributes = []
-            for i, feature in enumerate(result['features'], 1):
-                attributes.append(f"{i}:{feature:.4f}")
-            
-            # Escreve no formato LIBSVM
-            line = f"{y_data[idx]} {' '.join(attributes)}\n"
-            f.write(line)
-            
-            # Salva o resultado no formato pickle para cada imagem
-            formatted_result = {
-                'model': args.model,
-                'image_idx': idx,
-                'true_class': class_names[0 if y_data[idx] == -1 else 1],
-                'predicted_class': predicted_class,
-                'confidence': confidence,
-                'features': result['features'],
-                'success': predicted_class == class_names[0 if y_data[idx] == -1 else 1]
-            }
-            
-            # Salva cada resultado em um arquivo separado
-            result_file = f"{args.save}_{idx}.pkl"
-            with open(result_file, 'wb') as file:
-                pickle.dump(formatted_result, file)
+    loader.save_as_libsvm(x_data, y_data, args.libsvm_file)
 
