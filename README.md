@@ -86,7 +86,7 @@ python FeatureExtractor/join_repository.py FeatureExtractor/TransferLearningAnti
 
 3. Finally, train the SVM classifier on the combined features:
 ```bash
-python SVM/svm_classifier.py -dataset FeatureExtractor/Joined_TransferLearning.libsvm
+python SVM/svm_classifier.py -dataset Joined_TransferLearning.libsvm
 ```
 
 This hybrid approach:
