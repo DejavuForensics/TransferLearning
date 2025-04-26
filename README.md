@@ -53,8 +53,8 @@ python SVM/svm_classifier.py -dataset FeatureExtractor/TransferLearningAntivirus
 python3 SVM/svm_classifier.py -dataset FeatureExtractor/TransferLearningAntivirus.libsvm
 ```
 
-Onde:
-- `-dataset`: Caminho para o arquivo libsvm (opcional, padrão: 'FeatureExtractor/TransferLearningAntivirus.libsvm')
+Where:
+- `-dataset`: Path to the libsvm file (optional, default: 'FeatureExtractor/TransferLearningAntivirus.libsvm')
 
 The script will:
 - Load the extracted features
