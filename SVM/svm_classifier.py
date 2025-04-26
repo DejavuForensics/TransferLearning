@@ -5,6 +5,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.datasets import load_svmlight_file
 import os
 import pickle
+import argparse
 from generate_report import calculate_metrics, generate_html_report
 
 def load_libsvm_data(file_path):
@@ -112,11 +113,14 @@ class SVMClassifier:
             self.results = pickle.load(f)
 
 def main():
-    # Configurações
-    libsvm_file = 'FeatureExtractor/TransferLearningAntivirus.libsvm'  # Arquivo LIBSVM
+    # Configuração do parser de argumentos
+    parser = argparse.ArgumentParser(description='Classificador SVM para detecção de malware')
+    parser.add_argument('-dataset', type=str, required=True,
+                      help='Caminho para o arquivo LIBSVM contendo os dados')
+    args = parser.parse_args()
     
     # Carrega os dados do arquivo LIBSVM
-    X, y = load_libsvm_data(libsvm_file)
+    X, y = load_libsvm_data(args.dataset)
     
     # Inicializa e treina o SVM com 5-fold cross validation
     svm = SVMClassifier(kernel='rbf', C=1.0, gamma='scale')
