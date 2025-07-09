@@ -25,7 +25,7 @@ class FileToImageConverter:
         
     def _process_file(self, file_path):
         """Processa arquivos .exe ou .json"""
-        if file_path.lower().endswith('.file'):
+        if file_path.lower().endswith('.file') or file_path.lower().endswith('.exe') or file_path.lower().endswith(''):
             with open(file_path, 'rb') as f:
                 byte_content = f.read()
         elif file_path.lower().endswith('.json'):
