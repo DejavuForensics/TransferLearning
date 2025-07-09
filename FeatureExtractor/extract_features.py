@@ -25,14 +25,14 @@ class FileToImageConverter:
         
     def _process_file(self, file_path):
         """Processa arquivos .exe ou .json"""
-        if file_path.lower().endswith('.file') or file_path.lower().endswith('.exe') or file_path.lower().endswith(''):
-            with open(file_path, 'rb') as f:
-                byte_content = f.read()
-        elif file_path.lower().endswith('.json'):
+        if file_path.lower().endswith('.json'):
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             byte_content = json.dumps(data).encode('utf-8')
-        
+        else:
+            with open(file_path, 'rb') as f:
+                byte_content = f.read()
+
         # Converte para array numpy e calcula estatísticas
         byte_array = np.frombuffer(byte_content, dtype=np.uint8)
         
@@ -148,18 +148,17 @@ class CustomDatasetLoader:
             print(f"Encontrados {len(files)} arquivos em {class_folder}")
             
             for filename in files:
-                if filename.lower().endswith(f'.json') or filename.lower().endswith(f'.file'):
-                    file_path = os.path.join(class_folder, filename)
-                    try:
-                        img_array = self.converter.convert_to_image(file_path)
-                        # Garante que a imagem tenha o formato correto (32, 32, 3)
-                        if img_array.shape != (32, 32, 3):
-                            print(f"Ajustando formato da imagem de {img_array.shape} para (32, 32, 3)")
-                            img_array = img_array.reshape(32, 32, 3)
-                        x_data.append(img_array)
-                        y_data.append(label_mapping[class_name])
-                    except Exception as e:
-                        print(f"Erro ao processar {file_path}: {str(e)}")
+                file_path = os.path.join(class_folder, filename)
+                try:
+                    img_array = self.converter.convert_to_image(file_path)
+                    # Garante que a imagem tenha o formato correto (32, 32, 3)
+                    if img_array.shape != (32, 32, 3):
+                        print(f"Ajustando formato da imagem de {img_array.shape} para (32, 32, 3)")
+                        img_array = img_array.reshape(32, 32, 3)
+                    x_data.append(img_array)
+                    y_data.append(label_mapping[class_name])
+                except Exception as e:
+                    print(f"Erro ao processar {file_path}: {str(e)}")
         
         return np.array(x_data), np.array(y_data)
     
