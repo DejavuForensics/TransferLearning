@@ -17,7 +17,7 @@ def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix'
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
         fmt = '.2f'
     else:
-        fmt = 'd'
+        fmt = '.0f'
 
     plt.figure(figsize=(8, 6))
     sns.heatmap(cm, annot=True, fmt=fmt, cmap=cmap, xticklabels=classes, yticklabels=classes)
@@ -38,8 +38,11 @@ def generate_html_report(results, output_dir='SVM/results'):
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
     
+    # Get number of folds from results
+    n_folds = len([key for key in results.keys() if key.startswith('fold_')])
+    
     # Save confusion matrix plots
-    for fold in range(5):
+    for fold in range(n_folds):
         plt = plot_confusion_matrix(
             results[f'fold_{fold}']['confusion_matrix'],
             classes=['Benign', 'Malware'],
@@ -57,6 +60,31 @@ def generate_html_report(results, output_dir='SVM/results'):
         )
         plt.savefig(f'{output_dir}/confusion_matrix_norm_fold_{fold+1}.png')
         plt.close()
+
+    # Calculate average confusion matrix
+    avg_confusion_matrix = np.zeros((2, 2))
+    for fold in range(n_folds):
+        avg_confusion_matrix += results[f'fold_{fold}']['confusion_matrix']
+    avg_confusion_matrix = avg_confusion_matrix / n_folds
+
+    # Plot average confusion matrix
+    plt = plot_confusion_matrix(
+        avg_confusion_matrix,
+        classes=['Benign', 'Malware'],
+        title='Average Confusion Matrix (All Folds)'
+    )
+    plt.savefig(f'{output_dir}/confusion_matrix_average.png')
+    plt.close()
+
+    # Normalized average confusion matrix
+    plt = plot_confusion_matrix(
+        avg_confusion_matrix,
+        classes=['Benign', 'Malware'],
+        normalize=True,
+        title='Normalized Average Confusion Matrix (All Folds)'
+    )
+    plt.savefig(f'{output_dir}/confusion_matrix_average_norm.png')
+    plt.close()
 
     # HTML template
     html_template = """
@@ -76,6 +104,7 @@ def generate_html_report(results, output_dir='SVM/results'):
             .matrix-container img { max-width: 400px; }
             h1, h2 { color: #333; }
             .summary { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0; }
+            .avg-metrics { background-color: #e8f4f8; padding: 15px; border-radius: 5px; margin: 20px 0; }
         </style>
     </head>
     <body>
@@ -83,66 +112,93 @@ def generate_html_report(results, output_dir='SVM/results'):
             <h1>SVM Classification Results</h1>
             
             <div class="summary">
-                <h2>Overall Performance</h2>
+                <h2>Overall Performance (Percentages)</h2>
                 <table class="metrics-table">
                     <tr>
                         <th>Metric</th>
-                        <th>Mean</th>
-                        <th>Standard Deviation</th>
+                        <th>Mean (%)</th>
+                        <th>Standard Deviation (%)</th>
                     </tr>
                     <tr>
                         <td>Accuracy</td>
-                        <td>{{ "%.4f"|format(overall_metrics.accuracy_mean) }}</td>
-                        <td>{{ "%.4f"|format(overall_metrics.accuracy_std) }}</td>
+                        <td>{{ "%.2f"|format(overall_metrics.accuracy_mean * 100) }}</td>
+                        <td>{{ "%.2f"|format(overall_metrics.accuracy_std * 100) }}</td>
                     </tr>
                     <tr>
                         <td>Precision</td>
-                        <td>{{ "%.4f"|format(overall_metrics.precision_mean) }}</td>
-                        <td>{{ "%.4f"|format(overall_metrics.precision_std) }}</td>
+                        <td>{{ "%.2f"|format(overall_metrics.precision_mean * 100) }}</td>
+                        <td>{{ "%.2f"|format(overall_metrics.precision_std * 100) }}</td>
                     </tr>
                     <tr>
                         <td>Recall</td>
-                        <td>{{ "%.4f"|format(overall_metrics.recall_mean) }}</td>
-                        <td>{{ "%.4f"|format(overall_metrics.recall_std) }}</td>
+                        <td>{{ "%.2f"|format(overall_metrics.recall_mean * 100) }}</td>
+                        <td>{{ "%.2f"|format(overall_metrics.recall_std * 100) }}</td>
                     </tr>
                     <tr>
                         <td>F1-Score</td>
-                        <td>{{ "%.4f"|format(overall_metrics.f1_mean) }}</td>
-                        <td>{{ "%.4f"|format(overall_metrics.f1_std) }}</td>
+                        <td>{{ "%.2f"|format(overall_metrics.f1_mean * 100) }}</td>
+                        <td>{{ "%.2f"|format(overall_metrics.f1_std * 100) }}</td>
                     </tr>
                     <tr>
                         <td>AUC</td>
-                        <td>{{ "%.4f"|format(overall_metrics.auc_mean) }}</td>
-                        <td>{{ "%.4f"|format(overall_metrics.auc_std) }}</td>
+                        <td>{{ "%.2f"|format(overall_metrics.auc_mean * 100) }}</td>
+                        <td>{{ "%.2f"|format(overall_metrics.auc_std * 100) }}</td>
                     </tr>
                 </table>
             </div>
 
-            <h2>Per-Fold Results</h2>
+            <div class="avg-metrics">
+                <h2>Average Confusion Matrix Values</h2>
+                <table class="metrics-table">
+                    <tr>
+                        <th></th>
+                        <th>Predicted Benign</th>
+                        <th>Predicted Malware</th>
+                    </tr>
+                    <tr>
+                        <td><strong>Actual Benign</strong></td>
+                        <td>{{ "%.2f"|format(avg_confusion_matrix[0][0]) }}</td>
+                        <td>{{ "%.2f"|format(avg_confusion_matrix[0][1]) }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Actual Malware</strong></td>
+                        <td>{{ "%.2f"|format(avg_confusion_matrix[1][0]) }}</td>
+                        <td>{{ "%.2f"|format(avg_confusion_matrix[1][1]) }}</td>
+                    </tr>
+                </table>
+                
+                <h3>Average Confusion Matrix Visualization</h3>
+                <div style="text-align: center;">
+                    <img src="confusion_matrix_average.png" alt="Average Confusion Matrix" style="max-width: 500px;">
+                    <img src="confusion_matrix_average_norm.png" alt="Normalized Average Confusion Matrix" style="max-width: 500px;">
+                </div>
+            </div>
+
+            <h2>Per-Fold Results (Percentages)</h2>
             <table class="metrics-table">
                 <tr>
                     <th>Fold</th>
-                    <th>Accuracy</th>
-                    <th>Precision</th>
-                    <th>Recall</th>
-                    <th>F1-Score</th>
-                    <th>AUC</th>
+                    <th>Accuracy (%)</th>
+                    <th>Precision (%)</th>
+                    <th>Recall (%)</th>
+                    <th>F1-Score (%)</th>
+                    <th>AUC (%)</th>
                 </tr>
-                {% for fold in range(5) %}
+                {% for fold in range(n_folds) %}
                 <tr>
                     <td>{{ fold + 1 }}</td>
-                    <td>{{ "%.4f"|format(results['fold_' + fold|string].accuracy) }}</td>
-                    <td>{{ "%.4f"|format(results['fold_' + fold|string].precision) }}</td>
-                    <td>{{ "%.4f"|format(results['fold_' + fold|string].recall) }}</td>
-                    <td>{{ "%.4f"|format(results['fold_' + fold|string].f1) }}</td>
-                    <td>{{ "%.4f"|format(results['fold_' + fold|string].auc) }}</td>
+                    <td>{{ "%.2f"|format(results['fold_' + fold|string].accuracy * 100) }}</td>
+                    <td>{{ "%.2f"|format(results['fold_' + fold|string].precision * 100) }}</td>
+                    <td>{{ "%.2f"|format(results['fold_' + fold|string].recall * 100) }}</td>
+                    <td>{{ "%.2f"|format(results['fold_' + fold|string].f1 * 100) }}</td>
+                    <td>{{ "%.2f"|format(results['fold_' + fold|string].auc * 100) }}</td>
                 </tr>
                 {% endfor %}
             </table>
 
-            <h2>Confusion Matrices</h2>
+            <h2>Individual Fold Confusion Matrices</h2>
             <div class="confusion-matrix">
-                {% for fold in range(5) %}
+                {% for fold in range(n_folds) %}
                 <div class="matrix-container">
                     <h3>Fold {{ fold + 1 }}</h3>
                     <img src="confusion_matrix_fold_{{ fold + 1 }}.png" alt="Confusion Matrix Fold {{ fold + 1 }}">
@@ -159,7 +215,7 @@ def generate_html_report(results, output_dir='SVM/results'):
     metrics = ['accuracy', 'precision', 'recall', 'f1', 'auc']
     overall_metrics = {}
     for metric in metrics:
-        values = [results[f'fold_{i}'][metric] for i in range(5)]
+        values = [results[f'fold_{i}'][metric] for i in range(n_folds)]
         overall_metrics[f'{metric}_mean'] = np.mean(values)
         overall_metrics[f'{metric}_std'] = np.std(values)
 
@@ -167,7 +223,9 @@ def generate_html_report(results, output_dir='SVM/results'):
     template = Template(html_template)
     html_content = template.render(
         results=results,
-        overall_metrics=type('Metrics', (), overall_metrics)
+        overall_metrics=type('Metrics', (), overall_metrics),
+        avg_confusion_matrix=avg_confusion_matrix,
+        n_folds=n_folds
     )
 
     # Save HTML file

@@ -15,6 +15,7 @@
             .matrix-container img { max-width: 400px; }
             h1, h2 { color: #333; }
             .summary { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0; }
+            .avg-metrics { background-color: #e8f4f8; padding: 15px; border-radius: 5px; margin: 20px 0; }
         </style>
     </head>
     <body>
@@ -22,100 +23,100 @@
             <h1>SVM Classification Results</h1>
             
             <div class="summary">
-                <h2>Overall Performance</h2>
+                <h2>Overall Performance (Percentages)</h2>
                 <table class="metrics-table">
                     <tr>
                         <th>Metric</th>
-                        <th>Mean</th>
-                        <th>Standard Deviation</th>
+                        <th>Mean (%)</th>
+                        <th>Standard Deviation (%)</th>
                     </tr>
                     <tr>
                         <td>Accuracy</td>
-                        <td>0.9740</td>
-                        <td>0.0037</td>
+                        <td>84.20</td>
+                        <td>0.47</td>
                     </tr>
                     <tr>
                         <td>Precision</td>
-                        <td>0.9887</td>
-                        <td>0.0059</td>
+                        <td>82.27</td>
+                        <td>1.04</td>
                     </tr>
                     <tr>
                         <td>Recall</td>
-                        <td>0.9590</td>
-                        <td>0.0037</td>
+                        <td>87.22</td>
+                        <td>0.51</td>
                     </tr>
                     <tr>
                         <td>F1-Score</td>
-                        <td>0.9736</td>
-                        <td>0.0038</td>
+                        <td>84.67</td>
+                        <td>0.31</td>
                     </tr>
                     <tr>
                         <td>AUC</td>
-                        <td>0.9980</td>
-                        <td>0.0005</td>
+                        <td>91.22</td>
+                        <td>0.04</td>
                     </tr>
                 </table>
             </div>
 
-            <h2>Per-Fold Results</h2>
+            <div class="avg-metrics">
+                <h2>Average Confusion Matrix Values</h2>
+                <table class="metrics-table">
+                    <tr>
+                        <th></th>
+                        <th>Predicted Benign</th>
+                        <th>Predicted Malware</th>
+                    </tr>
+                    <tr>
+                        <td><strong>Actual Benign</strong></td>
+                        <td>476.50</td>
+                        <td>110.50</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Actual Malware</strong></td>
+                        <td>75.00</td>
+                        <td>512.00</td>
+                    </tr>
+                </table>
+                
+                <h3>Average Confusion Matrix Visualization</h3>
+                <div style="text-align: center;">
+                    <img src="confusion_matrix_average.png" alt="Average Confusion Matrix" style="max-width: 500px;">
+                    <img src="confusion_matrix_average_norm.png" alt="Normalized Average Confusion Matrix" style="max-width: 500px;">
+                </div>
+            </div>
+
+            <h2>Per-Fold Results (Percentages)</h2>
             <table class="metrics-table">
                 <tr>
                     <th>Fold</th>
-                    <th>Accuracy</th>
-                    <th>Precision</th>
-                    <th>Recall</th>
-                    <th>F1-Score</th>
-                    <th>AUC</th>
+                    <th>Accuracy (%)</th>
+                    <th>Precision (%)</th>
+                    <th>Recall (%)</th>
+                    <th>F1-Score (%)</th>
+                    <th>AUC (%)</th>
                 </tr>
                 
                 <tr>
                     <td>1</td>
-                    <td>0.9725</td>
-                    <td>0.9896</td>
-                    <td>0.9550</td>
-                    <td>0.9720</td>
-                    <td>0.9982</td>
+                    <td>84.67</td>
+                    <td>83.31</td>
+                    <td>86.71</td>
+                    <td>84.97</td>
+                    <td>91.25</td>
                 </tr>
                 
                 <tr>
                     <td>2</td>
-                    <td>0.9775</td>
-                    <td>0.9948</td>
-                    <td>0.9600</td>
-                    <td>0.9771</td>
-                    <td>0.9980</td>
-                </tr>
-                
-                <tr>
-                    <td>3</td>
-                    <td>0.9775</td>
-                    <td>0.9948</td>
-                    <td>0.9600</td>
-                    <td>0.9771</td>
-                    <td>0.9986</td>
-                </tr>
-                
-                <tr>
-                    <td>4</td>
-                    <td>0.9675</td>
-                    <td>0.9795</td>
-                    <td>0.9550</td>
-                    <td>0.9671</td>
-                    <td>0.9979</td>
-                </tr>
-                
-                <tr>
-                    <td>5</td>
-                    <td>0.9750</td>
-                    <td>0.9847</td>
-                    <td>0.9650</td>
-                    <td>0.9747</td>
-                    <td>0.9972</td>
+                    <td>83.73</td>
+                    <td>81.23</td>
+                    <td>87.73</td>
+                    <td>84.36</td>
+                    <td>91.18</td>
                 </tr>
                 
             </table>
 
-            <h2>Confusion Matrices</h2>
+            <h2>Individual Fold Confusion Matrices</h2>
             <div class="confusion-matrix">
                 
                 <div class="matrix-container">
@@ -128,24 +129,6 @@
                     <h3>Fold 2</h3>
                     <img src="confusion_matrix_fold_2.png" alt="Confusion Matrix Fold 2">
                     <img src="confusion_matrix_norm_fold_2.png" alt="Normalized Confusion Matrix Fold 2">
-                </div>
-                
-                <div class="matrix-container">
-                    <h3>Fold 3</h3>
-                    <img src="confusion_matrix_fold_3.png" alt="Confusion Matrix Fold 3">
-                    <img src="confusion_matrix_norm_fold_3.png" alt="Normalized Confusion Matrix Fold 3">
-                </div>
-                
-                <div class="matrix-container">
-                    <h3>Fold 4</h3>
-                    <img src="confusion_matrix_fold_4.png" alt="Confusion Matrix Fold 4">
-                    <img src="confusion_matrix_norm_fold_4.png" alt="Normalized Confusion Matrix Fold 4">
-                </div>
-                
-                <div class="matrix-container">
-                    <h3>Fold 5</h3>
-                    <img src="confusion_matrix_fold_5.png" alt="Confusion Matrix Fold 5">
-                    <img src="confusion_matrix_norm_fold_5.png" alt="Normalized Confusion Matrix Fold 5">
                 </div>
                 
             </div>

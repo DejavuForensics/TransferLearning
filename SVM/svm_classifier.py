@@ -62,18 +62,45 @@ class SVMClassifier:
             # Calculate metrics
             self.results[f'fold_{fold}'] = calculate_metrics(y_test, y_pred, y_prob)
             
-            print(f"Fold {fold + 1} Results:")
-            print(f"Accuracy: {self.results[f'fold_{fold}']['accuracy']:.4f}")
-            print(f"Precision: {self.results[f'fold_{fold}']['precision']:.4f}")
-            print(f"Recall: {self.results[f'fold_{fold}']['recall']:.4f}")
-            print(f"F1-Score: {self.results[f'fold_{fold}']['f1']:.4f}")
-            print(f"AUC: {self.results[f'fold_{fold}']['auc']:.4f}")
+            print(f"Fold {fold + 1} Results (Percentages):")
+            print(f"Accuracy: {self.results[f'fold_{fold}']['accuracy']*100:.2f}%")
+            print(f"Precision: {self.results[f'fold_{fold}']['precision']*100:.2f}%")
+            print(f"Recall: {self.results[f'fold_{fold}']['recall']*100:.2f}%")
+            print(f"F1-Score: {self.results[f'fold_{fold}']['f1']*100:.2f}%")
+            print(f"AUC: {self.results[f'fold_{fold}']['auc']*100:.2f}%")
+        
+        # Calculate and display average metrics
+        self.display_average_metrics()
         
         # Generate HTML report
         generate_html_report(self.results)
         
         # Save results
         self.save_results()
+    
+    def display_average_metrics(self):
+        """Display average metrics across all folds"""
+        metrics = ['accuracy', 'precision', 'recall', 'f1', 'auc']
+        avg_metrics = {}
+        std_metrics = {}
+        
+        # Get number of folds from results
+        n_folds = len([key for key in self.results.keys() if key.startswith('fold_')])
+        
+        for metric in metrics:
+            values = [self.results[f'fold_{i}'][metric] for i in range(n_folds)]
+            avg_metrics[metric] = np.mean(values)
+            std_metrics[metric] = np.std(values)
+        
+        print(f"\n{'='*50}")
+        print(f"AVERAGE PERFORMANCE ACROSS ALL {n_folds} FOLDS (Percentages)")
+        print(f"{'='*50}")
+        print(f"Accuracy:  {avg_metrics['accuracy']*100:.2f}% ± {std_metrics['accuracy']*100:.2f}%")
+        print(f"Precision: {avg_metrics['precision']*100:.2f}% ± {std_metrics['precision']*100:.2f}%")
+        print(f"Recall:    {avg_metrics['recall']*100:.2f}% ± {std_metrics['recall']*100:.2f}%")
+        print(f"F1-Score:  {avg_metrics['f1']*100:.2f}% ± {std_metrics['f1']*100:.2f}%")
+        print(f"AUC:       {avg_metrics['auc']*100:.2f}% ± {std_metrics['auc']*100:.2f}%")
+        print(f"{'='*50}")
     
     def predict(self, X):
         """
@@ -124,7 +151,7 @@ def main():
     
     # Inicializa e treina o SVM com 5-fold cross validation
     svm = SVMClassifier(kernel='rbf', C=1.0, gamma='scale')
-    svm.train(X, y)
+    svm.train(X, y, n_splits=10)
     
     # Exemplo de previsão para um novo arquivo
     print("\nExemplo de previsão:")
@@ -133,7 +160,7 @@ def main():
     print(f"Arquivo de teste {sample_idx}:")
     print(f"Classe verdadeira: {'benign' if y[sample_idx] == -1 else 'malware'}")
     print(f"Classe prevista: {'benign' if sample_pred[0] == -1 else 'malware'}")
-    print(f"Probabilidade de malware: {sample_prob[0]:.4f}")
+    print(f"Probabilidade de malware: {sample_prob[0]*100:.2f}%")
 
 if __name__ == '__main__':
     main() 
