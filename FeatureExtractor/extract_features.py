@@ -18,13 +18,14 @@ from networks.densenet import DenseNet
 from networks.wide_resnet import WideResNet
 from networks.capsnet import CapsNet
 
+
 class FileToImageConverter:
     def __init__(self, target_size=(32, 32)):
         self.target_size = target_size
         self.target_bytes = target_size[0] * target_size[1] * 3
-        
+
     def _process_file(self, file_path):
-        """Processa arquivos .exe ou .json"""
+        """Process .exe or .json files and extract byte-level features."""
         if file_path.lower().endswith('.json'):
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -33,172 +34,147 @@ class FileToImageConverter:
             with open(file_path, 'rb') as f:
                 byte_content = f.read()
 
-        # Converte para array numpy e calcula estatísticas
+        # Convert to numpy array and compute statistics
         byte_array = np.frombuffer(byte_content, dtype=np.uint8)
-        
-        # Calcula entropia dos bytes
+
+        # Compute entropy of bytes
         unique, counts = np.unique(byte_array, return_counts=True)
         probabilities = counts / len(byte_array)
-        entropy = -np.sum(probabilities * np.log2(probabilities))
-        
-        # Normaliza a entropia para o intervalo [0, 255]
+        entropy = -np.sum(probabilities * np.log2(probabilities + 1e-10))  # Avoid log(0)
+
+        # Normalize entropy to [0, 255]
         entropy_normalized = int((entropy / 8) * 255)
-        
-        # Calcula média e desvio padrão dos bytes
+
+        # Compute mean and standard deviation
         mean = np.mean(byte_array)
         std = np.std(byte_array)
-        
-        # Normaliza média e desvio padrão para o intervalo [0, 255]
+
+        # Normalize mean and std to [0, 255]
         mean_normalized = int(mean)
         std_normalized = int((std / 128) * 255)
-        
+
         return byte_array, entropy_normalized, mean_normalized, std_normalized
-    
+
     def convert_to_image(self, file_path):
-        """Converte um arquivo em imagem 32x32x3 com características adicionais"""
+        """Convert a file into a 32x32x3 RGB image using byte features."""
         byte_array, entropy, mean, std = self._process_file(file_path)
-        
-        # Se o arquivo for muito pequeno, preenche com zeros
+
+        # Pad or truncate to target size
         if len(byte_array) < self.target_bytes:
             padding = np.zeros(self.target_bytes - len(byte_array), dtype=np.uint8)
             byte_array = np.concatenate([byte_array, padding])
         elif len(byte_array) > self.target_bytes:
             byte_array = byte_array[:self.target_bytes]
-        
-        # Cria a imagem com características adicionais
+
+        # Generate smart-resized image with embedded statistical features
         image = self._smart_resize(byte_array, entropy, mean, std)
-        
-        # Verifica se a imagem tem a dimensão correta
+
+        # Ensure correct shape
         if image.shape != (self.target_size[0], self.target_size[1], 3):
-            print(f"Aviso: A imagem tem dimensão {image.shape}, redimensionando para {(self.target_size[0], self.target_size[1], 3)}")
+            print(f"Warning: Image has shape {image.shape}, reshaping to {(self.target_size[0], self.target_size[1], 3)}")
             image = image.reshape(self.target_size[0], self.target_size[1], 3)
-        
-        
+
         return image
-    
+
     def _smart_resize(self, byte_array, entropy, mean, std):
-        """Redimensionamento inteligente com interpolação linear e adição de características"""
+        """Smart resizing using linear interpolation and embedding statistical features into RGB channels."""
         if len(byte_array) == self.target_bytes:
             return byte_array.reshape(self.target_size[0], self.target_size[1], 3)
-            
-        # Usa interpolação linear
+
+        # Linear interpolation to resize byte sequence
         x_original = np.linspace(0, 1, len(byte_array))
         x_target = np.linspace(0, 1, self.target_bytes)
         interp_func = interp1d(x_original, byte_array, kind='linear', fill_value='extrapolate')
         resized_bytes = np.clip(interp_func(x_target), 0, 255).astype(np.uint8)
-        
-        # Cria uma imagem RGB onde:
-        # R: Bytes originais com variação baseada no hash do arquivo
-        # G: Entropia com variação baseada na média
-        # B: Média e desvio padrão com variação baseada no desvio padrão
-        
-        # Gera uma matriz de variação única para cada arquivo
-        hash_value = hash(byte_array.tobytes())  # Usa o hash do conteúdo do arquivo
-        variation = np.random.RandomState(seed=hash_value).randint(0, 100, size=(self.target_size[0], self.target_size[1]))
-        
-        # Cria a imagem RGB
+
+        # Create RGB image with semantic channel encoding:
+        # R: Interpolated bytes + file-specific variation
+        # G: Entropy + mean-based variation
+        # B: Mean and std combined + std-based variation
+
+        hash_value = hash(byte_array.tobytes())
+        variation = np.random.RandomState(seed=hash_value).randint(0, 100, size=self.target_size[:2])
+
         image = np.zeros((self.target_size[0], self.target_size[1], 3), dtype=np.uint8)
-        
-        # Preenche o canal R com os bytes redimensionados + variação
-        image[:,:,0] = np.clip(resized_bytes.reshape(self.target_size[0], self.target_size[1]) + variation, 0, 255)
-        
-        # Preenche o canal G com entropia + variação baseada na média
+
+        # Channel R: Original bytes + variation
+        image[:, :, 0] = np.clip(resized_bytes.reshape(self.target_size[0], self.target_size[1]) + variation, 0, 255)
+
+        # Channel G: Entropy + mean-weighted variation
         entropy_variation = np.clip(entropy + (variation * mean / 255), 0, 255)
-        image[:,:,1] = entropy_variation
-        
-        # Preenche o canal B com média e desvio padrão + variação baseada no desvio padrão
+        image[:, :, 1] = entropy_variation
+
+        # Channel B: Combined mean and std + std-weighted variation
         mean_std_variation = np.clip((mean + std) // 2 + (variation * std / 128), 0, 255)
-        image[:,:,2] = mean_std_variation
-        
+        image[:, :, 2] = mean_std_variation
+
         return image.astype(np.uint8)
-   
+
 
 class CustomDatasetLoader:
-    def __init__(self, data_folder, label_file=None):
+    def __init__(self, benign_dir, malware_dir):
         self.converter = FileToImageConverter()
-        self.data_folder = data_folder
-        self.label_file = label_file
-        self.class_names = ['benign', 'malware']  # Classes binárias
-        
+        self.benign_dir = benign_dir
+        self.malware_dir = malware_dir
+        self.class_names = ['benign', 'malware']
+
     def load_data(self):
-        """Carrega dados de arquivos .exe e .json com classificação binária"""
+        """Load binary classification dataset from separate benign and malware directories."""
         x_data = []
         y_data = []
-        
-        print(f"\nIniciando carregamento de dados do diretório: {self.data_folder}")
-        
-        # Mapeamento de rótulos
+
+        print(f"\nLoading dataset from:")
+        print(f"  Benign: {self.benign_dir}")
+        print(f"  Malware: {self.malware_dir}")
+
         label_mapping = {'benign': -1, 'malware': +1}
-        
-        if not os.path.exists(self.data_folder):
-            print(f"Pasta {self.data_folder} não encontrada")
-            return
-            
-        # Para cada classe (benign/malware)
-        for class_name in ['benign', 'malware']:
-            class_folder = os.path.join(self.data_folder, class_name)
-            print(f"Verificando classe {class_name} em {class_folder}")
-            
-            if not os.path.exists(class_folder):
-                print(f"Pasta {class_folder} não encontrada")
+
+        for class_name, data_dir in [('benign', self.benign_dir), ('malware', self.malware_dir)]:
+            if not os.path.exists(data_dir):
+                print(f"Warning: Directory '{data_dir}' does not exist. Skipping {class_name}.")
                 continue
-                
-            # Processa cada arquivo na pasta
-            files = os.listdir(class_folder)
-            print(f"Encontrados {len(files)} arquivos em {class_folder}")
-            
+
+            files = [f for f in os.listdir(data_dir) if os.path.isfile(os.path.join(data_dir, f))]
+            print(f"Found {len(files)} files in {class_name} directory.")
+
             for filename in files:
-                file_path = os.path.join(class_folder, filename)
+                file_path = os.path.join(data_dir, filename)
                 try:
                     img_array = self.converter.convert_to_image(file_path)
-                    # Garante que a imagem tenha o formato correto (32, 32, 3)
                     if img_array.shape != (32, 32, 3):
-                        print(f"Ajustando formato da imagem de {img_array.shape} para (32, 32, 3)")
                         img_array = img_array.reshape(32, 32, 3)
                     x_data.append(img_array)
                     y_data.append(label_mapping[class_name])
                 except Exception as e:
-                    print(f"Erro ao processar {file_path}: {str(e)}")
-        
+                    print(f"Error processing {file_path}: {str(e)}")
+
+        if len(x_data) == 0:
+            raise ValueError("No valid files found in either benign or malware directories.")
+
         return np.array(x_data), np.array(y_data)
-    
+
     def save_as_libsvm(self, x_data, y_data, output_file):
-        """Salva os dados no formato libsvm, incluindo apenas features não-zero.
-        
-        Args:
-            x_data (numpy.ndarray): Dados de entrada
-            y_data (numpy.ndarray): Labels
-            output_file (str): Caminho do arquivo de saída
-        """
-        # Reshape dos dados para formato 2D
+        """Save dataset in LIBSVM format (sparse representation, non-zero features only)."""
         x_data = x_data.reshape(len(x_data), -1)
-        
+
         with open(output_file, 'w') as f:
             for i in range(len(x_data)):
-                # Escreve o label
                 line = str(int(y_data[i]))
-                
-                # Adiciona apenas as features não-zero
                 for j in range(x_data.shape[1]):
                     value = x_data[i, j]
-                    if value != 0:  # Inclui apenas valores não-zero
-                        # Converte para inteiro se possível, mantém decimal se necessário
+                    if value != 0:
                         if value.is_integer():
                             value = int(value)
                         line += f" {j+1}:{value}"
-                
                 f.write(line + '\n')
-        
-        print(f"Arquivo libsvm salvo em: {output_file}")
-        print(f"Total de amostras: {len(x_data)}")
+
+        print(f"LIBSVM file saved to: {output_file}")
+        print(f"Total samples: {len(x_data)}")
+
 
 class Classifier:
     def __init__(self, model_name='lenet'):
-        """Inicializa o classificador com um modelo pré-treinado.
-        
-        Args:
-            model_name (str): Nome do modelo a ser usado ('lenet', 'resnet', etc.)
-        """
+        """Initialize classifier with pre-trained network."""
         self.model_defs = {
             'lenet': LeNet,
             'pure_cnn': PureCnn,
@@ -208,179 +184,141 @@ class Classifier:
             'wide_resnet': WideResNet,
             'capsnet': CapsNet
         }
-        
+
         if model_name not in self.model_defs:
-            raise ValueError(f"Modelo {model_name} não encontrado. Modelos disponíveis: {list(self.model_defs.keys())}")
-            
+            raise ValueError(f"Model '{model_name}' not found. Available models: {list(self.model_defs.keys())}")
+
         self.model = self.model_defs[model_name](load_weights=True)
         self.class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
-        
-        # Cria um modelo para extrair atributos da penúltima camada
+
+        # Feature extractor: penultimate layer output
         self.feature_model = tf.keras.Model(
             inputs=self.model._model.input,
             outputs=self.model._model.layers[-2].output
         )
-        
+
     def extract_features(self, image):
-        """Extrai atributos da penúltima camada do modelo.
-        
-        Args:
-            image (numpy.ndarray): Imagem para extração de atributos (deve ter shape (1, 32, 32, 3))
-            
-        Returns:
-            numpy.ndarray: Atributos extraídos da penúltima camada
-        """
-        # Garante que a imagem esteja no formato correto
+        """Extract features from the penultimate layer of the model."""
         if image.ndim == 3:
             image = np.expand_dims(image, axis=0)
-        
-        # Normaliza a imagem para o intervalo [0, 1]
         image = image.astype('float32') / 255.0
-        
-        # Extrai os atributos
         features = self.feature_model.predict(image)
         return features
-        
+
     def classify_image(self, image):
-        """Classifica uma imagem usando o modelo pré-treinado.
-        
-        Args:
-            image (numpy.ndarray): Imagem para classificação (deve ter shape (1, 32, 32, 3))
-            
-        Returns:
-            dict: Dicionário contendo:
-                - class: Nome da classe prevista
-                - confidence: Confiança da previsão
-                - all_predictions: Probabilidades para todas as classes
-                - features: Atributos extraídos da penúltima camada
-        """
-        # Garante que a imagem esteja no formato correto
+        """Classify an image and return prediction with confidence and features."""
         if image.ndim == 3:
             image = np.expand_dims(image, axis=0)
-        
-        # Normaliza a imagem para o intervalo [0, 1]
         image = image.astype('float32') / 255.0
-        
-        # Faz a previsão
+
         predictions = self.model.predict(image)
         predicted_class = np.argmax(predictions)
         confidence = predictions[0][predicted_class]
-        
-        # Extrai os atributos da penúltima camada
         features = self.extract_features(image)
-        
+
         return {
             'class': self.class_names[predicted_class],
             'confidence': float(confidence),
             'all_predictions': {name: float(prob) for name, prob in zip(self.class_names, predictions[0])},
-            'features': features[0]  # Remove a dimensão de batch
+            'features': features[0]
         }
-        
+
     def evaluate_accuracy(self, test_data=None):
-        """Avalia a acurácia do modelo no conjunto de teste.
-        
-        Args:
-            test_data (tuple, optional): Tupla (x_test, y_test). Se None, usa CIFAR-10.
-            
-        Returns:
-            float: Acurácia do modelo
-        """
+        """Evaluate model accuracy on CIFAR-10 or custom test set."""
         if test_data is None:
             (_, _), (x_test, y_test) = cifar10.load_data()
+            y_test = tf.keras.utils.to_categorical(y_test, len(self.class_names))
         else:
             x_test, y_test = test_data
-            
-        y_test = tf.keras.utils.to_categorical(y_test, len(self.class_names))
-        return self.model.accuracy()
+            y_test = tf.keras.utils.to_categorical((y_test + 1) // 2, num_classes=2)  # Map [-1,1] to [0,1]
+
+        return self.model.evaluate(x_test, y_test, verbose=0)[1]
+
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Use pre-trained models for classification')
-    parser.add_argument('--model', default='lenet', choices=['lenet', 'resnet', 'densenet', 'wide_resnet', 'capsnet'],
-                       help='Model to use for classification')
-    
-    # Argumentos para modo de classificação
-    parser.add_argument('--data_dir', required=True, help='Directory containing .exe and .json files')
-    parser.add_argument('--image_idx', type=int, help='Index of image to classify from custom dataset')
-    parser.add_argument('--train', action='store_true', help='Train the model with custom data instead of using pre-trained weights')
-    parser.add_argument('--epochs', type=int, default=10, help='Number of epochs for training')
-    parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training')
-    parser.add_argument('--validation_split', type=float, default=0.2, help='Fraction of data to use for validation')
-    
-    # Argumentos para modo de ataque (mantidos do código original)
-    parser.add_argument('--maxiter', default=75, type=int,
-                       help='The maximum number of iterations in the differential evolution algorithm.')
-    parser.add_argument('--popsize', default=400, type=int,
-                       help='The number of adversarial images generated each iteration.')
-    parser.add_argument('--samples', default=500, type=int,
-                       help='The number of image samples to attack.')
-    parser.add_argument('--targeted', action='store_true', help='Set this switch to test for targeted attacks.')
-    parser.add_argument('--save', default='FeatureExtractor/networks/results/results.pkl', help='Save location for the results (pickle)')
-    parser.add_argument('--libsvm_file', default='FeatureExtractor/TransferLearningAntivirus.libsvm', help='Save location for LIBSVM format file')
-    parser.add_argument('--verbose', action='store_true', help='Print out additional information every iteration.')
+    parser = argparse.ArgumentParser(description='Classify malware/benign files using pre-trained CNNs and extract features for lightweight ML.')
+
+    # Model selection
+    parser.add_argument('-model', default='lenet', choices=['lenet', 'resnet', 'densenet', 'wide_resnet', 'capsnet'],
+                        help='Pre-trained model to use for feature extraction and classification.')
+
+    # Dataset paths (replacing -data_dir with two separate directories)
+    parser.add_argument('-data_benign', required=True, type=str,
+                        help='Path to directory containing benign files (.exe or .json)')
+    parser.add_argument('-data_malware', required=True, type=str,
+                        help='Path to directory containing malware files (.exe or .json)')
+
+    # Classification mode
+    parser.add_argument('-image_idx', type=int,
+                        help='Index of a specific image to classify (optional). If not provided, all images are processed.')
+
+    # Training mode
+    parser.add_argument('-train', action='store_true',
+                        help='Train the model on the custom dataset instead of using pre-trained weights.')
+    parser.add_argument('-epochs', type=int, default=10,
+                        help='Number of training epochs (used only with -train).')
+    parser.add_argument('-batch_size', type=int, default=32,
+                        help='Batch size for training (used only with -train).')
+    parser.add_argument('-validation_split', type=float, default=0.2,
+                        help='Fraction of training data used for validation (used only with -train).')
+
+    # Attack mode (retained for compatibility)
+    parser.add_argument('-maxiter', default=75, type=int,
+                        help='Maximum iterations for differential evolution attack.')
+    parser.add_argument('-popsize', default=400, type=int,
+                        help='Population size for adversarial generation per iteration.')
+    parser.add_argument('-samples', default=500, type=int,
+                        help='Number of image samples to attack.')
+    parser.add_argument('-targeted', action='store_true',
+                        help='Enable targeted attacks.')
+    parser.add_argument('-save', default='FeatureExtractor/networks/results/results.pkl',
+                        help='Path to save attack results (pickle format).')
+    parser.add_argument('-libsvm_file', default='FeatureExtractor/TransferLearningAntivirus.libsvm',
+                        help='Path to save dataset in LIBSVM format.')
+    parser.add_argument('-verbose', action='store_true',
+                        help='Print detailed information during execution.')
 
     args = parser.parse_args()
 
-    # Verifica se o diretório existe
-    if not os.path.exists(args.data_dir):
-        print(f"Erro: O diretório {args.data_dir} não existe!")
+    # Validate input directories
+    if not os.path.exists(args.data_benign):
+        print(f"Error: Benign directory '{args.data_benign}' does not exist.")
+        exit(1)
+    if not os.path.exists(args.data_malware):
+        print(f"Error: Malware directory '{args.data_malware}' does not exist.")
         exit(1)
 
-    # Carrega o dataset customizado com o conversor escolhido
-    loader = CustomDatasetLoader(args.data_dir)
-    (x_data, y_data) = loader.load_data()
-    
-    # Verifica se o dataset não está vazio
-    if len(x_data) == 0:
-        print(f"Erro: Nenhuma imagem encontrada no diretório {args.data_dir}!")
-        print("Verifique se:")
-        print("1. O diretório contém arquivos .exe ou .json")
-        print("2. Os arquivos estão na estrutura correta:")
-        print("   - benign/")
-        print("   - malware/")
-        exit(1)
+    # Load dataset
+    loader = CustomDatasetLoader(args.data_benign, args.data_malware)
+    x_data, y_data = loader.load_data()
 
-    class_names = ['benign', 'malware']  # Classes do CustomDatasetLoader
-
-    # Cria o diretório se não existir
+    # Create necessary directories
     os.makedirs('FeatureExtractor/networks/pretrained_weights', exist_ok=True)
     os.makedirs('FeatureExtractor/networks/results', exist_ok=True)
 
     classifier = Classifier(args.model)
-    
-    # Se o modo de treinamento estiver ativado
+
+    # Train model if requested
     if args.train:
-        print("\nIniciando treinamento do modelo com dados customizados...")        
-        # Converte os rótulos para o formato one-hot
-        y_data_one_hot = tf.keras.utils.to_categorical((y_data + 1) // 2, num_classes=2)
-        
-        # Configura callbacks para monitoramento
+        print("\nTraining model on custom dataset...")
+        y_data_one_hot = tf.keras.utils.to_categorical((y_data + 1) // 2, num_classes=2)  # Map [-1,1] → [0,1]
+
         callbacks = [
-            tf.keras.callbacks.EarlyStopping(
-                monitor='val_loss',
-                patience=3,
-                restore_best_weights=True
-            ),
+            tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True),
             tf.keras.callbacks.ModelCheckpoint(
                 filepath=f"FeatureExtractor/networks/pretrained_weights/{args.model}_custom.h5",
                 monitor='val_accuracy',
                 save_best_only=True
             )
         ]
-        
-        # Treina o modelo usando o método train() da classe LeNet
+
         if isinstance(classifier.model, LeNet):
-            # Configura parâmetros de treinamento
             classifier.model.epochs = args.epochs
             classifier.model.batch_size = args.batch_size
-            
-            # Treina o modelo
             classifier.model.train()
-            
-            # Carrega os melhores pesos
             classifier.model._model.load_weights(f"FeatureExtractor/networks/pretrained_weights/{args.model}_custom.h5")
-            print(f"\nMelhores pesos carregados de: FeatureExtractor/networks/pretrained_weights/{args.model}_custom.h5")
+            print(f"Best weights loaded from: FeatureExtractor/networks/pretrained_weights/{args.model}_custom.h5")
         else:
-            # Para outros modelos, usa o método fit padrão
             history = classifier.model.fit(
                 x_data, y_data_one_hot,
                 epochs=args.epochs,
@@ -389,26 +327,17 @@ if __name__ == '__main__':
                 callbacks=callbacks,
                 verbose=1
             )
-            
-            print("\nTreinamento concluído!")
-            print(f"Acurácia final: {history.history['accuracy'][-1]:.2%}")
-            print(f"Acurácia de validação: {history.history['val_accuracy'][-1]:.2%}")
-            
-            # Carrega os melhores pesos
             classifier.model.load_weights(f"FeatureExtractor/networks/pretrained_weights/{args.model}_custom.h5")
-            print(f"\nMelhores pesos carregados de: FeatureExtractor/networks/pretrained_weights/{args.model}_custom.h5")
-        
-    # Se um índice específico foi fornecido, processa apenas essa imagem
-    if args.image_idx is not None:
-        if args.image_idx >= len(x_data):
-            print(f"Erro: Índice {args.image_idx} fora do intervalo! O dataset tem {len(x_data)} imagens.")
-            exit(1)
-        indices = [args.image_idx]
-    else:
-        # Processa todas as imagens
-        indices = range(len(x_data))
-    
-    # Salva no formato LIBSVM
-    print(f'Saving LIBSVM format to {args.libsvm_file}')
+            print(f"\nTraining completed!")
+            print(f"Final Accuracy: {history.history['accuracy'][-1]:.2%}")
+            print(f"Validation Accuracy: {history.history['val_accuracy'][-1]:.2%}")
+            print(f"Best weights loaded from: FeatureExtractor/networks/pretrained_weights/{args.model}_custom.h5")
+
+    # Classify specific image or entire dataset
+    indices = [args.image_idx] if args.image_idx is not None else range(len(x_data))
+
+    # Save dataset in LIBSVM format
+    print(f"\nSaving dataset in LIBSVM format to: {args.libsvm_file}")
     loader.save_as_libsvm(x_data, y_data, args.libsvm_file)
 
+    print(f"\n✅ Process completed successfully. {len(x_data)} samples processed.")
