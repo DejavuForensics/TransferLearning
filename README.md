@@ -42,10 +42,12 @@ The script will generate a LIBSVM format file: `FeatureExtractor/TransferLearnin
 ### 2. SVM Classification
 
 To employ SVM classification:
-https://github.com/DejavuForensics/SVM
+- https://github.com/DejavuForensics/SVM
 
 ### 2. ELM Classification
-https://github.com/DejavuForensics/mELM
+
+To employ ELM classification:
+- https://github.com/DejavuForensics/mELM
 
 
 ## Contribution
