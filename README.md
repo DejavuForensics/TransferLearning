@@ -26,7 +26,7 @@ Project requirements are listed in the `requirements.txt` file. To install all d
 
 To extract features using the ResNet model:
 ```bash
-python FeatureExtractor/extract_features.py -model resnet -data_benign ../IoT_ARM-main/IoT_ARM-main/benign/cuckoobox -data_malware ../IoT_ARM-main/IoT_ARM-main/malware/cuckoobox
+ python FeatureExtractor/extract_features.py -model resnet -data_benign ../../IoT_ARM-main/IoT_ARM-main/benign/cuckoobox -data_malware ../../IoT_ARM-main/IoT_ARM-main/malware/cuckoobox
 ```
 
 Available options:
