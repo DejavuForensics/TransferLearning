@@ -26,16 +26,10 @@ Project requirements are listed in the `requirements.txt` file. To install all d
 
 To extract features using the ResNet model:
 ```bash
-# On Windows
-python FeatureExtractor/extract_features.py --model resnet --data_dir AntivirusDataset
-
-# On Linux
-python3 FeatureExtractor/extract_features.py --model resnet --data_dir AntivirusDataset
-```
+python FeatureExtractor/extract_features.py --model resnet -data_benign ../IoT_ARM-main/IoT_ARM-main/benign/benign -data_malware ../IoT_ARM-main/IoT_ARM-main/malware/malware
 
 Available options:
-- `--model`: Choose between 'resnet' or 'lenet' to use pre-trained models, or any other option to train from scratch
-- `--data_dir`: Directory containing images for feature extraction
+- `-model`: Choose between 'resnet' or 'lenet' to use pre-trained models, or any other option to train from scratch
 
 The script will generate a LIBSVM format file: `FeatureExtractor/TransferLearningAntivirus.libsvm`
 
