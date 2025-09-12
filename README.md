@@ -5,16 +5,13 @@ This repository contains an implementation of transfer learning using pre-traine
 ## Project Structure
 
 - `FeatureExtractor/`: Contains scripts for feature extraction using neural networks
-- `SVM/`: Implementation of SVM with cross-validation
-- `AntivirusDataset/`: Example dataset for demonstration
 
 ## Features
 
 - Feature extraction using pre-trained networks from CIFAR-10
 - Training custom CNNs for feature extraction
-- Classification using SVM with cross-validation
+- Classification using lightweight learning machines with cross-validation
 - Results visualization and performance metrics
-- Hybrid approach combining shallow and deep network features
 
 ## Requirements
 
@@ -44,34 +41,15 @@ The script will generate a LIBSVM format file: `FeatureExtractor/TransferLearnin
 
 ### 2. SVM Classification
 
-To run SVM classification:
-```bash
-# On Windows
-python SVM/svm_classifier.py -dataset FeatureExtractor/TransferLearningAntivirus.libsvm
+To employ SVM classification:
+https://github.com/DejavuForensics/SVM
 
-# On Linux
-python3 SVM/svm_classifier.py -dataset FeatureExtractor/TransferLearningAntivirus.libsvm
-```
+### 2. ELM Classification
+https://github.com/DejavuForensics/mELM
 
-Where:
-- `-dataset`: Path to the libsvm file (optional, default: 'FeatureExtractor/TransferLearningAntivirus.libsvm')
-
-The script will:
-- Load the extracted features
-- Train the SVM with cross-validation
-- Display performance metrics
-- Generate a detailed HTML report: `SVM/results/svm_results_report.html`
-
-The HTML report includes:
-- Confusion matrices for each fold
-- Performance metrics (accuracy, precision, recall, F1-score, AUC)
-- Overall statistics
-- Visualizations
 
 ## Contribution
 
 Contributions are welcome! Please open an issue to discuss proposed changes or submit a pull request.
-
-## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
