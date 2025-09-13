@@ -1,11 +1,10 @@
+# -*- coding: utf-8 -*-
 import argparse
 import numpy as np
-import pickle
 import os
 import json
-from PIL import Image
+import csv
 from scipy.interpolate import interp1d
-from sklearn.datasets import dump_svmlight_file
 import tensorflow as tf
 from tensorflow.keras.datasets import cifar10
 
@@ -29,12 +28,11 @@ class FileToImageConverter:
         if file_path.lower().endswith('.json'):
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            byte_content = json.dumps(data).encode('utf-8')
+            byte_content = json.dumps(data, ensure_ascii=False).encode('utf-8')
         else:
             with open(file_path, 'rb') as f:
                 byte_content = f.read()
 
-        # Convert to numpy array and compute statistics
         byte_array = np.frombuffer(byte_content, dtype=np.uint8)
 
         # Compute entropy of bytes
@@ -46,8 +44,8 @@ class FileToImageConverter:
         entropy_normalized = int((entropy / 8) * 255)
 
         # Compute mean and standard deviation
-        mean = np.mean(byte_array)
-        std = np.std(byte_array)
+        mean = float(np.mean(byte_array))
+        std = float(np.std(byte_array))
 
         # Normalize mean and std to [0, 255]
         mean_normalized = int(mean)
@@ -87,13 +85,10 @@ class FileToImageConverter:
         interp_func = interp1d(x_original, byte_array, kind='linear', fill_value='extrapolate')
         resized_bytes = np.clip(interp_func(x_target), 0, 255).astype(np.uint8)
 
-        # Create RGB image with semantic channel encoding:
-        # R: Interpolated bytes + file-specific variation
-        # G: Entropy + mean-based variation
-        # B: Mean and std combined + std-based variation
-
-        hash_value = hash(byte_array.tobytes())
-        variation = np.random.RandomState(seed=hash_value).randint(0, 100, size=self.target_size[:2])
+        # Semente determinística e válida p/ RandomState
+        seed = int(np.sum(byte_array) % (2**32 - 1))
+        rng = np.random.RandomState(seed=seed)
+        variation = rng.randint(0, 100, size=self.target_size[:2])
 
         image = np.zeros((self.target_size[0], self.target_size[1], 3), dtype=np.uint8)
 
@@ -101,11 +96,11 @@ class FileToImageConverter:
         image[:, :, 0] = np.clip(resized_bytes.reshape(self.target_size[0], self.target_size[1]) + variation, 0, 255)
 
         # Channel G: Entropy + mean-weighted variation
-        entropy_variation = np.clip(entropy + (variation * mean / 255), 0, 255)
+        entropy_variation = np.clip(entropy + (variation * mean / 255.0), 0, 255)
         image[:, :, 1] = entropy_variation
 
         # Channel B: Combined mean and std + std-weighted variation
-        mean_std_variation = np.clip((mean + std) // 2 + (variation * std / 128), 0, 255)
+        mean_std_variation = np.clip((mean + std) // 2 + (variation * std / 128.0), 0, 255)
         image[:, :, 2] = mean_std_variation
 
         return image.astype(np.uint8)
@@ -122,6 +117,7 @@ class CustomDatasetLoader:
         """Load binary classification dataset from separate benign and malware directories."""
         x_data = []
         y_data = []
+        file_names = []  # <- Nome do aplicativo (arquivo)
 
         print(f"\nLoading dataset from:")
         print(f"  Benign: {self.benign_dir}")
@@ -145,31 +141,64 @@ class CustomDatasetLoader:
                         img_array = img_array.reshape(32, 32, 3)
                     x_data.append(img_array)
                     y_data.append(label_mapping[class_name])
+                    file_names.append(filename)  # guarda o nome do arquivo
                 except Exception as e:
                     print(f"Error processing {file_path}: {str(e)}")
 
         if len(x_data) == 0:
             raise ValueError("No valid files found in either benign or malware directories.")
 
-        return np.array(x_data), np.array(y_data)
+        return np.array(x_data), np.array(y_data), file_names
 
     def save_as_libsvm(self, x_data, y_data, output_file):
         """Save dataset in LIBSVM format (sparse representation, non-zero features only)."""
         x_data = x_data.reshape(len(x_data), -1)
 
-        with open(output_file, 'w') as f:
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        with open(output_file, 'w', encoding='utf-8') as f:
             for i in range(len(x_data)):
                 line = str(int(y_data[i]))
                 for j in range(x_data.shape[1]):
                     value = x_data[i, j]
                     if value != 0:
-                        if value.is_integer():
-                            value = int(value)
-                        line += f" {j+1}:{value}"
+                        line += f" {j+1}:{int(value)}"  # bytes 0..255 -> int
                 f.write(line + '\n')
 
         print(f"LIBSVM file saved to: {output_file}")
         print(f"Total samples: {len(x_data)}")
+
+    def save_as_csv(self, x_data, y_data, file_names, output_file, delimiter=';'):
+        """
+        Save dataset as CSV with format:
+        1st column: application (file) name
+        2nd column: output neuron(s) (here: the label 0/1)
+        From 3rd column on: input neurons (flattened features)
+        """
+        # Achata as imagens (N, 32, 32, 3) -> (N, 3072)
+        x_flat = x_data.reshape(len(x_data), -1)
+
+        if len(file_names) != len(x_flat) or len(y_data) != len(x_flat):
+            raise ValueError("Lengths of file_names, y_data, and x_data do not match.")
+
+        out_dir = os.path.dirname(output_file)
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+
+        # Cabeçalho: app;output;in_1;in_2;...
+        header = ['app', 'output'] + [f'in_{i+1}' for i in range(x_flat.shape[1])]
+
+        with open(output_file, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f, delimiter=delimiter)
+            writer.writerow(header)
+            for fname, y, features in zip(file_names, y_data, x_flat):
+                # Converte y para 0 (benign) ou 1 (malware)
+                label = 0 if int(y) == -1 else 1
+                row = [fname, label] + [int(v) for v in features]
+                writer.writerow(row)
+
+        print(f"CSV file saved to: {output_file}")
+        print(f"Total samples: {len(x_flat)}")
+
 
 
 class Classifier:
@@ -202,7 +231,7 @@ class Classifier:
         if image.ndim == 3:
             image = np.expand_dims(image, axis=0)
         image = image.astype('float32') / 255.0
-        features = self.feature_model.predict(image)
+        features = self.feature_model.predict(image, verbose=0)
         return features
 
     def classify_image(self, image):
@@ -211,7 +240,7 @@ class Classifier:
             image = np.expand_dims(image, axis=0)
         image = image.astype('float32') / 255.0
 
-        predictions = self.model.predict(image)
+        predictions = self.model.predict(image, verbose=0)
         predicted_class = np.argmax(predictions)
         confidence = predictions[0][predicted_class]
         features = self.extract_features(image)
@@ -236,13 +265,18 @@ class Classifier:
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Classify malware/benign files using pre-trained CNNs and extract features for lightweight ML.')
+    parser = argparse.ArgumentParser(
+        description='Classify malware/benign files using pre-trained CNNs and extract features for lightweight ML.'
+    )
 
     # Model selection
-    parser.add_argument('-model', default='lenet', choices=['lenet', 'resnet', 'densenet', 'wide_resnet', 'capsnet'],
-                        help='Pre-trained model to use for feature extraction and classification.')
+    parser.add_argument(
+        '-model', default='lenet',
+        choices=['lenet', 'resnet', 'densenet', 'wide_resnet', 'capsnet'],
+        help='Pre-trained model to use for feature extraction and classification.'
+    )
 
-    # Dataset paths (replacing -data_dir with two separate directories)
+    # Dataset paths
     parser.add_argument('-data_benign', required=True, type=str,
                         help='Path to directory containing benign files (.exe or .json)')
     parser.add_argument('-data_malware', required=True, type=str,
@@ -262,7 +296,7 @@ if __name__ == '__main__':
     parser.add_argument('-validation_split', type=float, default=0.2,
                         help='Fraction of training data used for validation (used only with -train).')
 
-    # Attack mode (retained for compatibility)
+    # Attack mode (compat)
     parser.add_argument('-maxiter', default=75, type=int,
                         help='Maximum iterations for differential evolution attack.')
     parser.add_argument('-popsize', default=400, type=int,
@@ -273,8 +307,13 @@ if __name__ == '__main__':
                         help='Enable targeted attacks.')
     parser.add_argument('-save', default='FeatureExtractor/networks/results/results.pkl',
                         help='Path to save attack results (pickle format).')
+
+    # Saídas
     parser.add_argument('-libsvm_file', default='FeatureExtractor/TransferLearningAntivirus.libsvm',
                         help='Path to save dataset in LIBSVM format.')
+    parser.add_argument('-csv_file', default='FeatureExtractor/TransferLearningAntivirus.csv',
+                        help='Path to save dataset in CSV format (app;output;in_1;in_2;...).')
+
     parser.add_argument('-verbose', action='store_true',
                         help='Print detailed information during execution.')
 
@@ -283,14 +322,14 @@ if __name__ == '__main__':
     # Validate input directories
     if not os.path.exists(args.data_benign):
         print(f"Error: Benign directory '{args.data_benign}' does not exist.")
-        exit(1)
+        raise SystemExit(1)
     if not os.path.exists(args.data_malware):
         print(f"Error: Malware directory '{args.data_malware}' does not exist.")
-        exit(1)
+        raise SystemExit(1)
 
     # Load dataset
     loader = CustomDatasetLoader(args.data_benign, args.data_malware)
-    x_data, y_data = loader.load_data()
+    x_data, y_data, file_names = loader.load_data()
 
     # Create necessary directories
     os.makedirs('FeatureExtractor/networks/pretrained_weights', exist_ok=True)
@@ -333,11 +372,16 @@ if __name__ == '__main__':
             print(f"Validation Accuracy: {history.history['val_accuracy'][-1]:.2%}")
             print(f"Best weights loaded from: FeatureExtractor/networks/pretrained_weights/{args.model}_custom.h5")
 
-    # Classify specific image or entire dataset
+    # Classify specific image or entire dataset (se desejar usar)
     indices = [args.image_idx] if args.image_idx is not None else range(len(x_data))
+    # (Nada a fazer aqui por padrão — mantido por compatibilidade)
 
     # Save dataset in LIBSVM format
     print(f"\nSaving dataset in LIBSVM format to: {args.libsvm_file}")
     loader.save_as_libsvm(x_data, y_data, args.libsvm_file)
+
+    # Save dataset in CSV format (app;output;in_1;...)
+    print(f"\nSaving dataset in CSV format to: {args.csv_file}")
+    loader.save_as_csv(x_data, y_data, file_names, args.csv_file, delimiter=';')
 
     print(f"\n✅ Process completed successfully. {len(x_data)} samples processed.")
